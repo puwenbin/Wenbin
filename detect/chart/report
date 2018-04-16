@@ -1,0 +1,169 @@
+#!/bin/bash
+# Source function library.
+
+#
+#processname:report chart run
+#description:start up peocess
+# Script Author:wenbin.pu
+
+
+if [ -f /etc/init.d/functions ]; then
+    . /etc/init.d/functions
+elif [ -f /etc/rc.d/init.d/functions ] ; then
+    . /etc/rc.d/init.d/functions
+else
+    exit 0
+fi
+
+# Source networking configuration.
+. /etc/sysconfig/network
+
+# Check that networking is up.
+[ ${NETWORKING} = "no" ] && exit 0
+
+REPORT="report.py"
+CHART="chart.py"
+RUN="run.py"
+
+RETVAL=0
+
+report_start(){
+    echo  "Starting $REPORT:"
+    #python /root/TTA_detect/report/$REPORT
+    /root/flask/bin/python2.6 /root/TTA_detect/report/$REPORT
+
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$REPORT
+    return $RETVAL
+}
+
+chart_start(){
+    echo  "Starting $CHART:"
+    #python /root/TTA_detect/chart/$CHART 
+
+    /root/flask/bin/python2.6 /root/TTA_detect/chart/$CHART
+
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$CHART
+    return $RETVAL
+}
+
+run_start(){
+    echo  "Starting $RUN:"
+    nohup /root/flask/bin/python2.6 /root/TTA_detect/app/detect/$RUN &
+
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$RUN
+    return $RETVAL
+}
+
+start(){
+    report_start
+    chart_start
+    run_start
+
+    RETVAL=$?
+
+    if [ $RETVAL -eq 0 ] ;then
+        return $RETVAL
+    else
+        break
+    fi  
+}
+
+report_stop(){
+    echo -n "Shutting down $REPORT:"
+    for line in `ps aux | grep "report/report.py" | grep -v grep | awk '{print $2}'`
+    do
+        kill -TERM $line
+    done
+    result=`ps aux | grep "report/report.py" | grep -v grep | wc -l`
+    if [ $result -eq 0 ] ; then
+        echo_success
+    else
+        echo_failure
+    fi
+
+    echo
+    RETVAL=$?
+    [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/$REPORT
+
+}
+
+chart_stop(){
+    echo -n "Shutting down $CHART:"
+    for line in `ps aux | grep "chart/chart.py" | grep -v grep | awk '{print $2}'`
+    do 
+        kill -TERM $line
+    done
+    result=`ps aux | grep "chart/chart.py" | grep -v grep | wc -l`
+    if [ $result -eq 0 ] ; then
+        echo_success
+    else
+        echo_failure
+    fi
+
+    echo
+    RETVAL=$?
+    [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/$CHART
+}
+
+run_stop(){
+    echo -n "Shutting down $RUN:"
+    for line in `ps aux | grep "/root/TTA_detect/app/detect/run.py" | grep -v grep | awk '{print $2}'`
+    do
+        kill -TERM $line
+    done
+    
+    sleep 1
+
+    result=`ps aux | grep "/root/TTA_detect/app/detect/run.py" | grep -v grep | wc -l`
+    
+
+    if [ $result -eq 0 ] ; then
+        echo_success
+    else
+        echo_failure
+    fi
+
+    echo
+    RETVAL=$?
+    [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/$RUN
+}
+
+stop(){
+    run_stop
+    chart_stop
+    report_stop
+
+}
+restart(){
+    stop
+    start
+}
+
+case "$1" in
+   start)
+      start
+      ;;
+   stop)
+      stop
+      ;;
+   restart)
+      restart
+      ;;
+   *)  
+    echo "Usage: python { start | stop | restart }" 
+    exit 1 
+esac
+exit $?
+
+
+
+
+
+
+

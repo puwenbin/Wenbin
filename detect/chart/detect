@@ -1,0 +1,102 @@
+#!/bin/bash
+# Source function library.
+
+#
+#processname:report chart run
+#description:start up peocess
+# Script Author:wenbin.pu
+
+
+if [ -f /etc/init.d/functions ]; then
+    . /etc/init.d/functions
+elif [ -f /etc/rc.d/init.d/functions ] ; then
+    . /etc/rc.d/init.d/functions
+else
+    exit 0
+fi
+
+# Source networking configuration.
+. /etc/sysconfig/network
+
+# Check that networking is up.
+[ ${NETWORKING} = "no" ] && exit 0
+
+DETECT="detect.py"
+RETVAL=0
+
+detect_start(){
+    echo  "Starting $DETECT:"
+    python /root/TTA_detect/detect/$DETECT
+    #flask/bin/python2.6 /root/TTA_detect/report/$REPORT
+
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$DETECT
+    return $RETVAL
+}
+
+    
+start(){
+    detect_start
+    RETVAL=$?
+
+    buf=`ps -ef | grep python`
+    echo $buf
+
+    if [ $RETVAL -eq 0 ] ;then
+        return $RETVAL
+    else
+        break
+    fi  
+}
+
+detect_stop(){
+    echo -n "Shutting down $DETECT:"
+    for line in `ps aux | grep "detect/detect.py" | grep -v grep | awk '{print $2}'`
+    do
+        kill -TERM $line
+    done
+    result=`ps aux | grep "detect/detect.py" | grep -v grep | wc -l`
+    if [ $result -eq 0 ] ; then
+        echo_success
+    else
+        echo_failure
+    fi
+
+    echo
+    RETVAL=$?
+    [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/$DETECT
+
+}
+
+stop(){
+
+    detect_stop
+}
+restart(){
+    stop
+    start
+}
+
+case "$1" in
+   start)
+      start
+      ;;
+   stop)
+      stop
+      ;;
+   restart)
+      restart
+      ;;
+   *)  
+    echo "Usage: python { start | stop | restart }" 
+    exit 1 
+esac
+exit $?
+
+
+
+
+
+
+
